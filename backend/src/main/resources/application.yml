@@ -61,16 +61,19 @@ spring:
   config:
     activate:
       on-profile: prod
+  # Defaults to in-memory H2 so the prod profile boots without any DB env vars
+  # (suitable for Render's free tier — data is wiped on each restart).
+  # Override DB_URL / DB_USER / DB_PASSWORD / DB_DRIVER / JPA_DIALECT for a real Postgres.
   datasource:
-    url: ${SUPABASE_DB_URL}
-    username: ${SUPABASE_DB_USER:postgres}
-    password: ${SUPABASE_DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
+    url: ${DB_URL:jdbc:h2:mem:umstudy;MODE=PostgreSQL;DB_CLOSE_DELAY=-1}
+    username: ${DB_USER:sa}
+    password: ${DB_PASSWORD:}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
-      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+      hibernate.dialect: ${JPA_DIALECT:org.hibernate.dialect.H2Dialect}
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
