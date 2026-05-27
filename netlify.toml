@@ -3,6 +3,14 @@
   command = "npm run build"
   publish = "dist"
 
+# Forward /api/* to the Render backend so the browser sees same-origin
+# (cookies/SameSite=Lax just work, no CORS dance).
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://um-study-backend.onrender.com/api/:splat"
+  status = 200
+  force  = true
+
 # SPA fallback: every non-asset route serves index.html so React Router can take over.
 [[redirects]]
   from   = "/*"
