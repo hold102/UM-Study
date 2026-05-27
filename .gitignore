@@ -18,6 +18,8 @@ backend/.mvn/wrapper/maven-wrapper.jar
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/*.log
+frontend/tsconfig.tsbuildinfo
 
 # Secrets / env
 .env
