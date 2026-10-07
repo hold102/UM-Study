@@ -1,6 +1,8 @@
 # Deploying UM Study
 
-Target: **Vercel** (frontend) + **Render** (backend) + **Supabase** (Postgres).
+Target: **Netlify** or **Vercel** (frontend) + **Render** (backend) + **Supabase** (Postgres).
+
+> The repo ships both `netlify.toml` (builds `frontend/` and proxies `/api/*` to Render) and `frontend/vercel.json`. The steps below use Vercel; on Netlify, import the repo and the config is picked up automatically.
 
 This guide assumes you start from this local repo with no remotes.
 
@@ -13,7 +15,7 @@ You need a GitHub remote because both Vercel and Render deploy from a git provid
 1. From this folder, initialize git and commit:
 
    ```bash
-   cd "/Users/LYYY/Downloads/Spectrum Info Extractor"
+   cd UM-Study
    git init
    git add .
    git commit -m "Initial commit"

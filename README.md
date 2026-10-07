@@ -1,138 +1,101 @@
-# UM Study System
+<h1 align="center">UM Study</h1>
 
-A week-aware companion to UM Spectrum. From login to the right file in three taps:
-**sign in → pick course → pick week → done.**
+<p align="center"><b>From login to the right file in three taps.</b></p>
 
-See `UM_Study_System_DevDoc.pdf` for the full spec and `UM_Study_Architecture.docx` for a plain-English tour of how it's built.
+<p align="center">
+A week-aware companion to Spectrum, Universiti Malaya's course portal.<br>
+Pick a course, pick a week, and see only that week's files.
+</p>
 
-## Architecture
+<p align="center">
+  <a href="#run-it-locally">Run locally</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="docs/design/UM_Study_System_DevDoc.pdf">Design doc</a> ·
+  <a href="docs/API.md">API</a>
+</p>
 
+<p align="center">
+  <img src="docs/assets/flow.gif" width="860" alt="Demo: pick a course, jump to the current week, and see only that week's slides, tutorial and reading list">
+</p>
+
+## Why
+
+By Week 9, Spectrum lists every file a lecturer has ever uploaded in one long stream. Getting to this week's slides means scrolling past everything older, and that small friction is often why material gets opened the night before the exam. UM Study shows only what you need right now.
+
+## Features
+
+- **Jump to this week:** the current week is highlighted and one tap away. Weeks 1–14 sit in one grid, with the mid-semester break skipped.
+- **Only this week's files:** filter by slides, tutorials, announcements or submissions.
+- **Announcements in context:** each week shows its announcement count, rendered as text rather than downloads.
+- **Upcoming submissions:** assignments and quizzes sorted by the closest deadline, with their status.
+- **Named sections:** Project and Past Year Papers stay one tap away without cluttering the weeks.
+- **Private by design:** your Spectrum token is encrypted at rest (AES-GCM).
+
+<details>
+<summary><b>More screenshots</b></summary>
+<br>
+<p align="center"><img src="docs/assets/phones.png" width="820" alt="Phone screens: course list, week grid with the current week highlighted, and the week's files"></p>
+<p align="center"><img src="docs/assets/upcoming.png" width="820" alt="Upcoming submissions sorted by deadline"></p>
+<p align="center"><img src="docs/assets/login.png" width="420" alt="Sign-in screen with a single Spectrum token field"></p>
+</details>
+
+## How it works
+
+```mermaid
+flowchart LR
+  S([Student]) -->|3 taps| FE["React SPA<br/>Vite + TypeScript"]
+  FE -->|/api| API
+  subgraph API["Spring Boot API"]
+    direction TB
+    T["Token vault<br/>AES-GCM"] ~~~ W["WeekClassifier<br/>section → week"]
+  end
+  API -->|"Moodle web service"| SP[("Spectrum")]
+  API --> DB[("PostgreSQL")]
 ```
-frontend/   React + Vite + TypeScript           →  http://localhost:5173
-backend/    Spring Boot 3.3 (Java 21+)          →  http://localhost:8080
-supabase/   Postgres schema + migrations
-```
 
-The frontend dev server proxies `/api`, `/oauth2`, and `/login/oauth2` to the
-backend so the OAuth flow and the session cookie work on a single origin.
+1. You sign in with your Spectrum mobile-service token. The backend verifies it with Spectrum and stores it encrypted.
+2. The backend reads your courses and sections, and `WeekClassifier` tags each section with a week or a named bucket.
+3. The app asks only for the week you picked, so each screen stays short.
 
-## Quick start (no setup)
+More detail: [connecting to Spectrum](docs/SPECTRUM.md) · [API reference](docs/API.md) · [deployment](docs/DEPLOY.md)
 
-The backend has a **dev profile** that uses an in-memory H2 database and a
-fake-login endpoint, so you can run the whole stack with no Supabase project
-and no Google OAuth credentials.
+## Run it locally
+
+Try the UI with mock data. No backend or account needed:
 
 ```bash
-# Terminal 1 — backend
-cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-
-# Terminal 2 — frontend (talking to real backend, not mock data)
-cd frontend
-npm install
-VITE_USE_MOCK=false npm run dev
+cd frontend && npm install
+VITE_USE_MOCK=true npm run dev    # → http://localhost:5173
 ```
 
-Open <http://localhost:5173> and click "Continue with Google". In dev profile
-this is aliased to `/api/dev/login` which signs you in as `tan.liang@um.edu.my`.
-
-The frontend also has a **mock mode** (the default, no backend needed):
+<details>
+<summary><b>Full stack with your own Spectrum data</b> (Java 21, Node 18+)</summary>
+<br>
 
 ```bash
+# Terminal 1: API on :8080 (dev profile, local H2 database)
+cd backend && ./mvnw spring-boot:run
+
+# Terminal 2: UI on :5173, proxies /api to the backend
 cd frontend && npm install && npm run dev
 ```
 
-## Production setup
+Sign in with your token from **Spectrum → Profile → Preferences → Security keys → Moodle mobile web service**.
+</details>
 
-### 1. Supabase
+## Tech stack
 
-Create a project, then run the SQL in `supabase/migrations/001_init.sql`
-(SQL editor, or `supabase db push` if using the CLI).
+| Layer | Tech |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, React Router |
+| Backend | Spring Boot 3.3, Java 21, Spring Security |
+| Data | PostgreSQL via Supabase (migrations in `supabase/`), H2 locally |
+| Integration | Spectrum (Moodle) web service |
+| Deploy | Netlify (frontend) and Render (backend), see [DEPLOY.md](docs/DEPLOY.md) |
 
-### 2. Backend
+## Status
 
-```bash
-cd backend
-export SPRING_PROFILES_ACTIVE=prod
-export SUPABASE_DB_URL='jdbc:postgresql://<host>:5432/postgres'
-export SUPABASE_DB_USER='postgres'
-export SUPABASE_DB_PASSWORD='...'
-export MICROSOFT_CLIENT_ID='...'
-export MICROSOFT_CLIENT_SECRET='...'
-export MICROSOFT_TENANT_ID='...'   # UM's Azure AD tenant id; or "common" for any
-mvn spring-boot:run
-```
-
-In Azure portal → App registrations → New registration:
-- **Supported account types**: "Accounts in this organizational directory only" (single-tenant, UM)
-- **Redirect URI**: `Web` → `http://localhost:8080/login/oauth2/code/microsoft`
-- After creation, get the Application (client) ID and Directory (tenant) ID
-- Certificates & secrets → New client secret → copy the *Value*
-
-### 3. Frontend
-
-```bash
-cd frontend
-VITE_USE_MOCK=false npm run build
-```
-
-## Connecting to the real Spectrum
-
-The backend ships with two `SpectrumClient` implementations, picked at startup:
-
-| `SPECTRUM_CLIENT` | What runs | Use for |
-|---|---|---|
-| `stub` (default) | `StubSpectrumClient` returning canned data | local dev, demos |
-| `moodle` | `MoodleSpectrumClient` hitting `/webservice/rest/server.php` | production (Spectrum is Moodle) |
-
-### How a student connects their account
-
-1. They open Spectrum and go to **Profile → Preferences → Security keys**.
-2. They create a key for the *Moodle mobile web service* (this is the one with
-   `core_enrol_get_users_courses` etc.) and copy the token.
-3. In the app: **Settings → paste the token → Save**. The backend AES-GCM-encrypts
-   it with `APP_SECRET_KEY` before storing it on `app_user.spectrum_token_enc`.
-4. From then on the backend calls Spectrum on the student's behalf, passing
-   `wstoken=…` in each request.
-
-### Switching the backend to Moodle mode
-
-```bash
-export SPECTRUM_CLIENT=moodle
-export SPECTRUM_BASE_URL=https://spectrum.um.edu.my
-export APP_SECRET_KEY="$(openssl rand -base64 32)"   # required in prod
-mvn spring-boot:run -Dspring-boot.run.profiles=prod
-```
-
-### If Spectrum is not Moodle
-
-The `SpectrumClient` interface in `backend/.../spectrum/SpectrumClient.java` is
-the seam. Write a new `@Component` implementing it (e.g. `OpenLmsSpectrumClient`,
-`BlackboardSpectrumClient`, or an HTML-scraping `JsoupSpectrumClient`), annotate
-it with `@ConditionalOnProperty(name = "app.spectrum.client", havingValue = "yourname")`,
-and toggle via `SPECTRUM_CLIENT=yourname`.
-
-## API
-
-| Method | Path | Notes |
-|---|---|---|
-| `GET` | `/api/auth/me` | Current user or 401 |
-| `GET` | `/api/auth/logout` | Clears session |
-| `GET` | `/oauth2/authorization/google` | Starts Google OAuth (prod) / dev login (dev) |
-| `GET` | `/api/dev/login?email=...&name=...` | Dev only — fake sign-in |
-| `GET` | `/api/courses` | Student's courses (sync from Spectrum stub) |
-| `GET` | `/api/courses/{id}/sections` | Sections, with classified `week`/`bucket` |
-| `GET` | `/api/courses/{id}/files?week=N&type=slides` | Filtered files |
-| `GET` | `/api/courses/{id}/announcements?week=N` | Text announcements |
-| `GET`/`PUT` | `/api/courses/{id}/mappings` | Per-course section overrides |
-| `GET`/`PUT`/`DELETE` | `/api/me/spectrum-token` | Personal Spectrum token (encrypted at rest) |
-
-## Build plan (from the dev doc)
-
-- **M1** — Auth shell. ✅ Google login, `@um.edu.my` check, session cookie. Plus dev login.
-- **M2** — Spectrum integration. Interface in place, `StubSpectrumClient` returning canned data. Real client TBD.
-- **M3** — Course picker UI. ✅
-- **M4** — Manual section mapping + week picker. ✅
-- **M5** — Filtered file list (slides/announcement/tutorial). ✅ Announcements rendered as text, not files.
-- **M6** — Polish + caching. Partly done (DB acts as cache, skeletons + empty states in UI).
-- **M7** — Autonomous section scanning. `WeekClassifier` is in place; needs a scheduled job.
+- [x] Sign-in, course picker, week picker, filtered file list
+- [x] Live Spectrum data: files, announcements, assignments and quizzes
+- [ ] Friendlier error states and a 404 page ([UX test findings](docs/design/UM_Study_UX_Test_Report.docx))
+- [ ] Scheduled background scanning of course sections
